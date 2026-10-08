@@ -1,0 +1,10 @@
+[
+  {
+    "question": "Replace this with a real question about a document you've uploaded.",
+    "expected_keywords": ["replace", "with", "real", "keywords"]
+  },
+  {
+    "question": "What is the main topic of the uploaded document?",
+    "expected_keywords": []
+  }
+]

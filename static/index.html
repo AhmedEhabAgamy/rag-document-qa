@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>RAG Document Q&A</title>
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+<style>
+  :root {
+    color-scheme: dark;
+    --bg: #1a1a1e;
+    --panel: #242428;
+    --border: #35353b;
+    --text: #e8e8ea;
+    --muted: #9a9aa2;
+    --accent: #6c8eff;
+  }
+  * { box-sizing: border-box; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, Segoe UI, sans-serif;
+    max-width: 760px;
+    margin: 0 auto;
+    padding: 32px 20px 80px;
+  }
+  h1 { font-size: 1.4rem; margin-bottom: 4px; }
+  .sub { color: var(--muted); font-size: 0.9rem; margin-bottom: 28px; }
+
+  .panel {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 18px;
+    margin-bottom: 20px;
+  }
+  .panel h2 { font-size: 0.95rem; margin: 0 0 12px; color: var(--muted); font-weight: 600; }
+
+  input[type="file"], input[type="text"] {
+    width: 100%;
+    background: #1a1a1e;
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 10px 12px;
+    border-radius: 7px;
+    font-size: 0.95rem;
+  }
+  button {
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    padding: 10px 18px;
+    border-radius: 7px;
+    font-size: 0.9rem;
+    cursor: pointer;
+    margin-top: 10px;
+  }
+  button:disabled { opacity: 0.5; cursor: default; }
+
+  #uploadStatus, #indexedCount { font-size: 0.85rem; color: var(--muted); margin-top: 8px; }
+
+  .ask-row { display: flex; gap: 8px; }
+  .ask-row input { flex: 1; }
+  .ask-row button { margin-top: 0; }
+
+  #answerBox { margin-top: 18px; display: none; }
+  #answerBox .answer { line-height: 1.55; }
+  #answerBox .answer p { margin: 0 0 10px; }
+  #answerBox .answer ul { margin: 0 0 10px 18px; padding: 0; }
+
+  .sources { margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--border); }
+  .sources h3 { font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); margin: 0 0 8px; }
+  .source-chip {
+    display: inline-block;
+    background: #1a1a1e;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 4px 10px;
+    font-size: 0.8rem;
+    color: var(--muted);
+    margin: 0 6px 6px 0;
+  }
+
+  .latency { color: var(--muted); font-size: 0.78rem; margin-top: 10px; }
+  .loading { color: var(--muted); font-size: 0.9rem; }
+</style>
+</head>
+<body>
+
+  <h1>📄 RAG Document Q&A</h1>
+  <div class="sub">Upload a PDF, then ask questions grounded in it.</div>
+
+  <div class="panel">
+    <h2>Upload a document</h2>
+    <input type="file" id="fileInput" accept="application/pdf">
+    <button id="uploadBtn">Upload PDF</button>
+    <div id="uploadStatus"></div>
+    <div id="indexedCount"></div>
+  </div>
+
+  <div class="panel">
+    <h2>Ask a question</h2>
+    <div class="ask-row">
+      <input type="text" id="questionInput" placeholder="What does the document say about...">
+      <button id="askBtn">Ask</button>
+    </div>
+
+    <div id="loading" class="loading" style="display:none;">Thinking…</div>
+
+    <div id="answerBox">
+      <div class="answer" id="answerText"></div>
+      <div class="sources" id="sourcesBox" style="display:none;">
+        <h3>Sources</h3>
+        <div id="sourcesList"></div>
+      </div>
+      <div class="latency" id="latencyText"></div>
+    </div>
+  </div>
+
+<script>
+const API = "";  // same origin, FastAPI serves this page too
+
+async function refreshHealth() {
+  try {
+    const res = await fetch(`${API}/health`);
+    const data = await res.json();
+    document.getElementById("indexedCount").textContent =
+      `${data.documents_indexed} chunk(s) indexed so far.`;
+  } catch (e) { /* ignore */ }
+}
+
+document.getElementById("uploadBtn").addEventListener("click", async () => {
+  const fileInput = document.getElementById("fileInput");
+  const status = document.getElementById("uploadStatus");
+  if (!fileInput.files.length) {
+    status.textContent = "Pick a PDF first.";
+    return;
+  }
+  const file = fileInput.files[0];
+  const formData = new FormData();
+  formData.append("file", file);
+
+  status.textContent = "Uploading and indexing…";
+  try {
+    const res = await fetch(`${API}/upload`, { method: "POST", body: formData });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || "Upload failed");
+    status.textContent = `Indexed "${data.filename}" — ${data.chunks_added} chunk(s) added.`;
+    refreshHealth();
+  } catch (e) {
+    status.textContent = `Error: ${e.message}`;
+  }
+});
+
+document.getElementById("askBtn").addEventListener("click", askQuestion);
+document.getElementById("questionInput").addEventListener("keydown", (e) => {
+  if (e.key === "Enter") askQuestion();
+});
+
+async function askQuestion() {
+  const input = document.getElementById("questionInput");
+  const question = input.value.trim();
+  if (!question) return;
+
+  const loading = document.getElementById("loading");
+  const answerBox = document.getElementById("answerBox");
+  const askBtn = document.getElementById("askBtn");
+
+  loading.style.display = "block";
+  answerBox.style.display = "none";
+  askBtn.disabled = true;
+
+  try {
+    const res = await fetch(`${API}/ask`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ question })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || "Request failed");
+
+    document.getElementById("answerText").innerHTML = marked.parse(data.answer);
+
+    const sourcesBox = document.getElementById("sourcesBox");
+    const sourcesList = document.getElementById("sourcesList");
+    sourcesList.innerHTML = "";
+    if (data.sources && data.sources.length) {
+      data.sources.forEach(s => {
+        const chip = document.createElement("span");
+        chip.className = "source-chip";
+        chip.textContent = `${s.source} — page ${s.page}`;
+        sourcesList.appendChild(chip);
+      });
+      sourcesBox.style.display = "block";
+    } else {
+      sourcesBox.style.display = "none";
+    }
+
+    document.getElementById("latencyText").textContent = `${data.latency_ms} ms`;
+    answerBox.style.display = "block";
+  } catch (e) {
+    document.getElementById("answerText").innerHTML = `<em>Error: ${e.message}</em>`;
+    document.getElementById("sourcesBox").style.display = "none";
+    document.getElementById("latencyText").textContent = "";
+    answerBox.style.display = "block";
+  } finally {
+    loading.style.display = "none";
+    askBtn.disabled = false;
+  }
+}
+
+refreshHealth();
+</script>
+</body>
+</html>

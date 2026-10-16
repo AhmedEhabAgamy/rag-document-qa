@@ -23,31 +23,6 @@ Most RAG tutorials stop at "it works in a notebook." This one goes further:
 - **Docker + docker-compose** — containerization
 - **A tiny eval harness** — fixed question set scored on every change
 
-## Project layout
-```
-rag-project/
-├── app/
-│   ├── main.py         # FastAPI app: routes
-│   ├── config.py       # settings (env vars)
-│   ├── ingest.py        # PDF loading + chunking
-│   ├── vectorstore.py   # Chroma wrapper (add / query)
-│   ├── llm.py           # LLM call (Claude), swappable
-│   ├── rag.py           # ties retrieval + generation together
-│   └── logger.py        # structured query logging (MLOps step 1)
-├── eval/
-│   ├── eval_set.json    # fixed Q/A pairs to test against
-│   └── run_eval.py      # scores current pipeline against eval_set.json
-├── data/
-│   ├── uploads/         # uploaded PDFs land here
-│   └── chroma/          # persisted vector DB
-├── logs/                # query logs (created at runtime)
-├── requirements.txt
-├── Dockerfile
-├── docker-compose.yml
-├── .env.example
-└── README.md
-```
-
 ## Requirements
 
 - **Python 3.11 or 3.12** (Python 3.13 is not yet fully supported by some dependencies — if you hit numpy/install errors, downgrade)

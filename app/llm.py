@@ -2,12 +2,13 @@
 The only file that should need to change if you swap LLM providers.
 Keeping the generation call isolated like this is a real deployment
 discipline: your API layer and retrieval logic shouldn't care whether
-the answer came from a local model, Claude, GPT, or anything else.
+the answer came from a local model, Groq, Claude, or anything else.
 
-This version uses Ollama (https://ollama.com) — a tool that runs open-source
-LLMs locally on your own machine, completely free, with no API key and no
-billing. Ollama must be installed and running separately (see README), and
-it exposes a local HTTP API on port 11434 that this file calls.
+This version uses Groq (https://console.groq.com) — a free, hosted API
+that runs open-source models (Llama, etc.) on very fast custom hardware.
+Free tier: no credit card, 30K tokens/minute, 14,400 requests/day.
+Groq's API is OpenAI-compatible, so this is a plain HTTP POST — no special
+SDK needed.
 """
 import requests
 
@@ -34,22 +35,27 @@ Answer using only the context above. Cite sources like (source, page)."""
 
     try:
         response = requests.post(
-            f"{settings.ollama_host}/api/chat",
+            "https://api.groq.com/openai/v1/chat/completions",
+            headers={
+                "Authorization": f"Bearer {settings.groq_api_key}",
+                "Content-Type": "application/json",
+            },
             json={
                 "model": settings.llm_model,
                 "messages": [
                     {"role": "system", "content": SYSTEM_PROMPT},
                     {"role": "user", "content": user_message},
                 ],
-                "stream": False,
             },
-            timeout=120,
+            timeout=30,
         )
         response.raise_for_status()
-        return response.json()["message"]["content"]
-    except requests.exceptions.ConnectionError:
-        return (
-            "Could not reach Ollama. Make sure it's installed and running "
-            f"(`ollama serve`), and that the model '{settings.llm_model}' has "
-            f"been pulled (`ollama pull {settings.llm_model}`)."
-        )
+        return response.json()["choices"][0]["message"]["content"]
+    except requests.exceptions.HTTPError as e:
+        if response.status_code == 401:
+            return "Groq API key is missing or invalid. Check GROQ_API_KEY in your .env file."
+        if response.status_code == 429:
+            return "Hit Groq's free tier rate limit — wait a moment and try again."
+        return f"Groq API error: {e}"
+    except requests.exceptions.RequestException as e:
+        return f"Could not reach Groq: {e}"

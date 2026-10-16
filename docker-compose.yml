@@ -5,13 +5,6 @@ services:
       - "8000:8000"
     env_file:
       - .env
-    environment:
-      # Ollama runs on your HOST machine, not inside this container.
-      # host.docker.internal resolves to the host on Mac/Windows Docker
-      # Desktop automatically; extra_hosts below makes it work on Linux too.
-      - OLLAMA_HOST=http://host.docker.internal:11434
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
     volumes:
       # State lives outside the container: rebuild the image freely
       # without losing uploaded PDFs, the vector DB, or query logs.

@@ -53,6 +53,13 @@ def query(question: str, top_k: int | None = None) -> list[dict]:
     collection = get_collection()
     k = top_k or settings.top_k
 
+    # Chroma's HNSW search throws a cryptic error if asked for more results
+    # than exist in the collection — cap k to what's actually available.
+    available = collection.count()
+    k = min(k, available)
+    if k == 0:
+        return []
+
     q_embedding = embedder.encode([question]).tolist()
     results = collection.query(query_embeddings=q_embedding, n_results=k)
 
@@ -73,3 +80,19 @@ def query(question: str, top_k: int | None = None) -> list[dict]:
 
 def collection_count() -> int:
     return get_collection().count()
+
+def delete_by_source(source_name: str) -> int:
+    """Removes every chunk belonging to a given uploaded filename."""
+    collection = get_collection()
+    existing = collection.get(where={"source": source_name})
+    count = len(existing["ids"])
+    if count:
+        collection.delete(where={"source": source_name})
+    return count
+
+
+def list_sources() -> list[str]:
+    """Returns the distinct filenames currently indexed."""
+    collection = get_collection()
+    all_items = collection.get()
+    return sorted({m["source"] for m in all_items["metadatas"]})

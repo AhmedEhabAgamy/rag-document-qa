@@ -51,6 +51,24 @@ def ask(req: AskRequest):
         raise HTTPException(status_code=400, detail="Question cannot be empty.")
     return rag.answer_question(req.question, top_k=req.top_k)
 
+
+@app.get("/documents")
+def list_documents():
+    return {"documents": vectorstore.list_sources()}
+
+
+@app.delete("/documents/{filename}")
+def delete_document(filename: str):
+    deleted_count = vectorstore.delete_by_source(filename)
+    if deleted_count == 0:
+        raise HTTPException(status_code=404, detail=f"No chunks found for '{filename}'.")
+
+    file_path = os.path.join(settings.upload_dir, filename)
+    if os.path.exists(file_path):
+        os.remove(file_path)
+
+    return {"filename": filename, "chunks_removed": deleted_count}
+
 # Serves static/index.html at "/" — must come after the API routes above,
 # since FastAPI matches routes in definition order.
 app.mount("/", StaticFiles(directory="static", html=True), name="static")

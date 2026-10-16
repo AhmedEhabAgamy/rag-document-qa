@@ -1,10 +1,26 @@
 [
   {
-    "question": "Replace this with a real question about a document you've uploaded.",
-    "expected_keywords": ["replace", "with", "real", "keywords"]
+    "question": "What is the Transformer and what does it replace?",
+    "expected_keywords": ["attention", "recurrence", "convolution"]
   },
   {
-    "question": "What is the main topic of the uploaded document?",
-    "expected_keywords": []
+    "question": "Who are the authors of this paper?",
+    "expected_keywords": ["Vaswani", "Shazeer"]
+  },
+  {
+    "question": "What BLEU score did the model achieve on the WMT 2014 English-to-German translation task?",
+    "expected_keywords": ["28.4"]
+  },
+  {
+    "question": "What BLEU score did the model achieve on the WMT 2014 English-to-French translation task?",
+    "expected_keywords": ["41.8"]
+  },
+  {
+    "question": "What is multi-head attention?",
+    "expected_keywords": ["attention", "parallel"]
+  },
+  {
+    "question": "How many GPUs and how long did training take for the French translation result?",
+    "expected_keywords": ["eight", "3.5"]
   }
 ]

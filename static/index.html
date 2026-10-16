@@ -82,6 +82,30 @@
 
   .latency { color: var(--muted); font-size: 0.78rem; margin-top: 10px; }
   .loading { color: var(--muted); font-size: 0.9rem; }
+
+  .doc-list { margin-top: 14px; }
+  .doc-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: #1a1a1e;
+    border: 1px solid var(--border);
+    border-radius: 7px;
+    padding: 8px 12px;
+    margin-bottom: 6px;
+    font-size: 0.88rem;
+  }
+  .doc-item .chunk-count { color: var(--muted); font-size: 0.78rem; margin-left: 8px; }
+  .delete-btn {
+    background: transparent;
+    color: #e05c5c;
+    border: 1px solid #4a2c2c;
+    padding: 4px 10px;
+    font-size: 0.78rem;
+    margin-top: 0;
+  }
+  .delete-btn:hover { background: #2a1a1a; }
+  .empty-docs { color: var(--muted); font-size: 0.85rem; font-style: italic; }
 </style>
 </head>
 <body>
@@ -95,6 +119,11 @@
     <button id="uploadBtn">Upload PDF</button>
     <div id="uploadStatus"></div>
     <div id="indexedCount"></div>
+  </div>
+
+  <div class="panel">
+    <h2>Your documents</h2>
+    <div class="doc-list" id="docList"></div>
   </div>
 
   <div class="panel">
@@ -128,6 +157,49 @@ async function refreshHealth() {
   } catch (e) { /* ignore */ }
 }
 
+async function loadDocuments() {
+  const docList = document.getElementById("docList");
+  try {
+    const res = await fetch(`${API}/documents`);
+    const data = await res.json();
+    docList.innerHTML = "";
+
+    if (!data.documents || data.documents.length === 0) {
+      docList.innerHTML = `<div class="empty-docs">No documents uploaded yet.</div>`;
+      return;
+    }
+
+    data.documents.forEach(filename => {
+      const item = document.createElement("div");
+      item.className = "doc-item";
+      item.innerHTML = `
+        <span>${filename}</span>
+        <button class="delete-btn" data-filename="${filename}">Delete</button>
+      `;
+      docList.appendChild(item);
+    });
+
+    docList.querySelectorAll(".delete-btn").forEach(btn => {
+      btn.addEventListener("click", () => deleteDocument(btn.dataset.filename));
+    });
+  } catch (e) {
+    docList.innerHTML = `<div class="empty-docs">Could not load documents.</div>`;
+  }
+}
+
+async function deleteDocument(filename) {
+  if (!confirm(`Delete "${filename}"? This removes it from the index permanently.`)) return;
+  try {
+    const res = await fetch(`${API}/documents/${encodeURIComponent(filename)}`, { method: "DELETE" });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || "Delete failed");
+    loadDocuments();
+    refreshHealth();
+  } catch (e) {
+    alert(`Error deleting document: ${e.message}`);
+  }
+}
+
 document.getElementById("uploadBtn").addEventListener("click", async () => {
   const fileInput = document.getElementById("fileInput");
   const status = document.getElementById("uploadStatus");
@@ -146,6 +218,7 @@ document.getElementById("uploadBtn").addEventListener("click", async () => {
     if (!res.ok) throw new Error(data.detail || "Upload failed");
     status.textContent = `Indexed "${data.filename}" — ${data.chunks_added} chunk(s) added.`;
     refreshHealth();
+    loadDocuments();
   } catch (e) {
     status.textContent = `Error: ${e.message}`;
   }
@@ -209,6 +282,7 @@ async function askQuestion() {
 }
 
 refreshHealth();
+loadDocuments();
 </script>
 </body>
 </html>

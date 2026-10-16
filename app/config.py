@@ -10,8 +10,8 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
-    ollama_host: str = "http://localhost:11434"
-    llm_model: str = "llama3.2"
+    groq_api_key: str = ""
+    llm_model: str = "openai/gpt-oss-20b"
 
     embedding_model: str = "all-MiniLM-L6-v2"
 

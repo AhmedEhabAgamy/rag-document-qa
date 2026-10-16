@@ -1,16 +1,27 @@
 # RAG Document Q&A — Learning Project
 
-A minimal but *real* RAG service: upload PDFs, ask questions, get grounded answers
-with citations back to the source chunks. Built to be a vehicle for learning
-Docker, deployment, LLMs/RAG, and basic MLOps — not a toy notebook.
+A document question-answering system built to learn production AI engineering end to end: retrieval-augmented generation, local and hosted LLM inference, Docker containerization, and basic MLOps practices — not just a notebook demo.
+
+Upload a PDF, ask questions about it, get answers grounded in the actual document with page-level citations.
+
+![Chat answer](screenshots/chat-answer.jpeg)
+
+## Why this project
+
+Most RAG tutorials stop at "it works in a notebook." This one goes further:
+- A real FastAPI backend with a proper HTTP API (`/upload`, `/ask`, `/documents`, `/health`)
+- A usable web UI, not just curl commands
+- Fully containerized with Docker, deployable anywhere
+- Swappable LLM backend (works with Groq's free API, or a local model via Ollama) — see `app/llm.py`
+- A query logging + eval harness, the seed of real MLOps practice
 
 ## Stack
-- **FastAPI** — the API layer (`/upload`, `/ask`, `/health`)
+- **FastAPI** — the API layer
 - **ChromaDB** — local vector store (persisted to disk / a volume)
-- **sentence-transformers** — embeddings, runs locally, no API key needed
-- **Ollama** — generation step, runs an open-source LLM locally on your machine, completely free, no API key or billing (swap providers easily, see `app/llm.py`)
+- **sentence-transformers** — embeddings, runs locally, free
+- **Groq API** — fast, free LLM inference (swappable — see `app/llm.py`)
 - **Docker + docker-compose** — containerization
-- **A tiny eval harness** — the MLOps piece: a fixed question set scored on every change
+- **A tiny eval harness** — fixed question set scored on every change
 
 ## Project layout
 ```
@@ -37,77 +48,53 @@ rag-project/
 └── README.md
 ```
 
-## Quickstart (local, no Docker yet)
+## Requirements
 
-**0. Install Ollama first** (this is what runs the LLM, for free, on your own machine):
-- Download from https://ollama.com and install it for your OS
-- Pull a small model: `ollama pull llama3.2` (about 2GB, runs fine on CPU)
-- Leave it running — Ollama runs as a background service on `localhost:11434`
+- **Python 3.11 or 3.12** (Python 3.13 is not yet fully supported by some dependencies — if you hit numpy/install errors, downgrade)
+- **A free Groq API key** — get one at [console.groq.com](https://console.groq.com) (no credit card required)
+- **Docker Desktop** — only needed if you want to run it containerized (optional for local development)
 
-**1. Set up the project:**
+## Getting Started
+
+### 1. Clone and install
+
 ```bash
+git clone <your-repo-url>
+cd rag-project
+
 python -m venv venv
 source venv/bin/activate          # Windows: venv\Scripts\activate
 pip install -r requirements.txt
+```
 
+### 2. Add your API key
+
+```bash
 cp .env.example .env
-# the defaults in .env already point at Ollama — no key needed
+```
 
+Open `.env` and paste your Groq key into `GROQ_API_KEY=`. Everything else can stay at its default value.
+
+### 3. Run it
+
+```bash
 uvicorn app.main:app --reload --port 8000
 ```
 
-If `/ask` ever returns a message saying it couldn't reach Ollama, it means
-Ollama isn't running or the model hasn't been pulled yet — run `ollama serve`
-and `ollama pull llama3.2` in a terminal and try again.
+Open **http://127.0.0.1:8000** in your browser — you'll see the chat UI. Upload a PDF, then ask it questions.
 
-Then in another terminal:
-
-```bash
-# upload a PDF
-curl -X POST http://localhost:8000/upload -F "file=@/path/to/some.pdf"
-
-# ask a question
-curl -X POST http://localhost:8000/ask \
-  -H "Content-Type: application/json" \
-  -d '{"question": "What is this document about?"}'
-```
-
-## Run with Docker
+### 4. (Optional) Run with Docker instead
 
 ```bash
 docker compose up --build
 ```
 
-Same endpoints, now containerized. `data/` and `logs/` are mounted as volumes so
-your vector DB and logs survive container restarts — this is the first real
-"deployment" lesson: state has to live outside the container.
+Same app, same URL, now running in a container. Useful if you want to confirm it works the way it will when deployed, or if you'd rather not set up a Python virtual environment at all.
 
-## Run the eval
+### 5. (Optional) Run the eval
 
 ```bash
 python eval/run_eval.py
 ```
 
-This is your first MLOps habit: every time you change the chunk size, the
-embedding model, or the prompt, run this and see if your score moves. Add
-real questions/answers from your own documents to `eval/eval_set.json` as you go.
-
-## Suggested next steps (in order)
-1. Get it running locally, upload a real PDF, ask real questions. Read the logs.
-2. Break something on purpose (tiny chunk size, wrong top-k) and see how answers degrade.
-3. Add a `/metrics` endpoint (latency, token count, cost per query) — real MLOps.
-4. Swap `sentence-transformers` for a different embedding model and re-run the eval — this is what "versioning your embeddings" means in practice.
-5. Deploy the Docker container to a free-tier VM (Render, Railway, an Oracle free VM, whatever) so it's reachable from outside your laptop.
-6. Add basic auth + rate limiting so it isn't a wide-open endpoint once it's public.
-
-## Notes for learning, not just running
-- `app/llm.py` is intentionally isolated — swapping models/providers should
-  only ever touch this one file. That's a deployment/MLOps discipline, not
-  just tidiness.
-- `app/logger.py` writes one JSON line per query (question, retrieved chunk
-  IDs, answer, latency, timestamp). This is the seed of real observability —
-  in production this would go to a proper logging/monitoring stack instead
-  of a local file.
-- Chunk size and top-k are read from `.env`, not hardcoded, so you can
-  experiment without touching code — every RAG project lives or dies on
-  these two numbers.
+Scores the pipeline against the questions in `eval/eval_set.json` — add your own questions there once you've uploaded a document you know well.
